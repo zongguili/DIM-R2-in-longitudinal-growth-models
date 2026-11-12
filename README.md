@@ -1,82 +1,55 @@
-# R functions used for computing R-squared effect size
+# DIM R Functions: Illustration Examples
 
-The functions *r2lmer()*, *r2lme()*, and *r2lmeRmat()* compute $R^2$ statistics using the DIM (dummy indicator matrices) method in longitudinal growth models and multilevel models (Li and Ryu). The functions are used along with *lme4* or *nlme* functions in R.
+This repository provides illustrative examples for applying the DIM R functions developed by Li and Ryu (2026) to compute R² measures for selected fixed and random effects in longitudinal growth and multilevel models. The accompanying paper uses empirical data from existing longitudinal study databases, whereas this repository uses a simulated longitudinal dataset for the illustrations.
 
-Li, Z. and Ryu, E. Effect Size Measures for Longitudinal Growth Models.
+## Repository files
 
-# Description
-The model should be estimated using *lmer* function from *lme4* package (lme4::lmer) before using the function *r2lmer()*. The model should be estimated using *lme* function from *nlme* package (nlme::lme) before using the functions *r2lme()* and *r2lmeRmat()*. The function *r2lmeRmat()* may be used for models with one of the following level-1 residual covariance structure: Constant (single constant variance $\sigma^2$), Diag (diagonal structure with heterogeneous variances), CS (compound symmetry), CSH (compound symmetry with heterogeneous variances), AR(1) (first-order autocorrelation), ARH(1) (first-order autocorrelation with heterogeneous variances). The *r2lmeRmat ()* function computes $R^2$ statistics with and without weighted level-1 residual variance strucure.
+- `r2lmer.R`: computes R² measures for models estimated with `lme4::lmer()`.
+- `r2lme.R`: computes R² measures for models estimated with `nlme::lme()`.
+- `r2lmeRmat.R`: computes R² measures for `lme()` models with more complex level-1 residual covariance structures.
+- `bp_example.csv`: simulated longitudinal blood-pressure dataset used in the illustrations.
+- `Illustration_examples.Rmd`: R Markdown file containing the model specifications, function calls, output, and interpretation examples.
+- `Illustration_examples.pdf`: PDF version of the illustration for users who want to view the complete examples without running the R Markdown file.
 
-All three functions require three input arguments:\
-(a) model: The output object for the estimated model from *lmer* or *lme*,\
-(b) effectf: selected fixed effects for which the $R^2$ is computed (effectf <- NULL if no fixed effect is selected), and\
-(c) effectr: selected random effects for which the $R^2$ is computed (effectr <- NULL if no random effect is selected; effectr <- “(Intercept)” to select the random intercept). 
+## Requirements
 
-# Example
+The examples require the following R packages:
 
-Following are examples of using *r2lmer()*, *r2lme()*, and *r2lmeRmat()*.
-## *r2lmer*
-```{r,r2lmer, echo=T}
+```r
+install.packages(c("lme4", "nlme"))
+```
+
+Load the packages and DIM functions before running the examples:
+
+```r
 library(lme4)
-# Estimate the model: 
-m<-lmer(formula=y ~ time+w2+(1+time|id),data=data)
-
-# R^2 for the fixed and random effect of time
-effectf<-c("time")
-effectr<-c("time")
-r2lmer(m,effectf,effectr)
-
-# R^2 for the fixed effect of level-1 covariate w2
-effectf<-c("w2")
-effectr<-NULL
-r2lmer(m,effectf,effectr)
-```
-## *r2lme*
-```{r,r2lme, echo=T}
 library(nlme)
-# Estimate the model:
-m<-lme(y ~ time+w2+z1+time*z1,random = ~ 1+time| id, data =data)
 
-# R^2 for the level-2 random effects (random intercept and random slope of time)
-effectf<-NULL
-effectr<-c("(Intercept)","time")
-r2lme(m,effectf,effectr)
-
-# R^2 for the effects of cross-level interaction time and z1
-effectf<-c("time:z1")
-effectr<-NULL
-r2lme(m,effectf,effectr)
+source("r2lmer.R")
+source("r2lme.R")
+source("r2lmeRmat.R")
 ```
 
-## *r2lmeRmat*
-```{r,r2lme, echo=T}
-library(nlme)
-# Estimate the model with constant level-1 residual covariance structure:
-m<-lme(y ~ time+w2+z1+time*z1,random = ~ 1+time| id, data =data)
+## Reproducing the illustrations
 
-# R^2 for the level-2 random effects (random intercept and random slope of time)
-effectf<-NULL
-effectr<-c("(Intercept)","time")
-r2lmeRmat(m,effectf,effectr)
+1. Download this repository.
+2. Keep `bp_example.csv`, the three DIM function files, and `Illustration_examples.Rmd` in the same working directory.
+3. Open `Illustration_examples.Rmd` in RStudio.
+4. Run the code chunks sequentially or knit the file to HTML.
 
-# Estimate the model with CS level-1 residual covariance structure: 
-m_CS<-lme(y ~ time+w2, random = ~ 1+time| id,
-    correlation = corCompSymm(form = ~time|id),
-    data =data)
-    
-# R^2 for the fixed effect of time
-effectf<-c("time")
-effectr<-NULL
-r2lmeRmat(m_CS,effectf,effectr)
+If you only want to view the illustration and output, open `Illustration_examples.pdf`.
 
-# Estimate the model with ARH(1) level-1 residual covariance structure:
-m_ARH<-lme(y ~ time+w2, random = ~ 1+time| id,
-    correlation = corAR1(form = ~ time|id),
-    weights = varIdent(form = ~ 1 |time),
-    data = data)
-    
-# R^2 for the fixed effect of time
-effectf<-c("time")
-effectr<-NULL
-r2lmeRmat(m_ARH,effectf,effectr)
-```
+## Functions
+
+The three functions use a consistent input structure:
+
+- `model`: a fitted `lmer()` or `lme()` model object.
+- `effectf`: the target fixed-effect term(s). Use `NULL` if no fixed effects are selected.
+- `effectr`: the target random-effect term(s). Use `NULL` if no random effects are selected; use `"(Intercept)"` to select the random intercept.
+
+See `Illustration_examples.Rmd` or `Illustration_examples.pdf` for complete examples.
+
+## Reference
+
+Li, Z., & Ryu, E. (2026). *R functions to compute effect size measures in longitudinal growth models*.[Manuscript under review].
+
