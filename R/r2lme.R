@@ -1,19 +1,44 @@
-## Pinheiro J, Bates D, R Core Team (2025). nlme: Linear and Nonlinear Mixed Effects Models. doi:10.32614/CRAN.package.nlme, R package version 3.1-168, https://CRAN.R-project.org/package=nlme. 
-## The function r2lme() computes R^2 statistics from the output estimated with the `lme` function in the 'nlme' package (the function is written for version 3.1-168). 
-## The function requires the 'nlme' package. 
-## The function is written for models with random intercept. The model may or may not have random slopes.  
-## The following arguments must be provided.
-## model: lme output object. 
-## effectf: selected fixed effect terms for which the R^2 is computed (if no fixed effect is selected, effectf<-NULL).
-## effectr: selected random effect terms for which the R^2 is computed (if no fixed effect is selected, effectr<-NULL; use "(Intercept)" to specify the random intercept).
+## Li, Z., & Ryu, E. (2026). R functions to compute effect size measures in longitudinal growth models. [Manuscript under review].
+## The r2lme() function calculates R^2 statistics from models estimated using 
+## lme() in the 'nlme' package (tested on version 3.1-171).
+## 
+## Requirements:
+## - Requires the `nlme` package.
+## - Designed for models with a random intercept (with or without random slopes).
+## 
+## Arguments:
+## - model:   An 'lme' model object.
+## - effectf: Vector of fixed effect terms for which R^2 is computed. 
+##            Set to NULL (effectf <- NULL) if no fixed effects are selected.
+## - effectr: Vector of random effect terms for which R^2 is computed. 
+##            Set to NULL (effectr <- NULL) if no random effects are selected; 
+##            use "(Intercept)" to specify the random intercept.
+##
+## r2lme() provides an additional check for singular fits (threshold: 1e-4).
 
 
 r2lme<-function(model,effectf,effectr) {
+  ## check model fitting issue
+  lme_issues <- function(model, print = TRUE, tol = 1e-4) {
+    rel_sd <- sapply(as.matrix(model$modelStruct$reStruct), function(m)
+      sqrt(max(0, min(eigen(m, symmetric = TRUE, only.values = TRUE)$values))))
+    
+    warningout <- c(
+      if (is.character(model$apVar)) paste(model$apVar),
+      if (any(rel_sd < tol))
+        paste("Additional check (not reported by lme()): possible singular fit;",
+              "a random-effect variance is near zero or a correlation is near +/-1 (see VarCorr())")
+    )
+    
+    if (print && length(warningout)) message(paste(warningout, collapse = "\n"))
+    invisible(warningout)
+  }
+  ## data
   if (is.null(model$na.action)==TRUE) {
     data<-model$data
   } else {
     data<-model$data
-    data<-data[!(rownames(data)) %in% as.vector(model$na.action),]
+    data<-data[!(rownames(data)) %in% names(model$na.action),]
   }
   data[,"(Intercept)"]<-1
   xnames<-names(model$coefficients$fixed)
@@ -118,14 +143,20 @@ r2lme<-function(model,effectf,effectr) {
   } else {
     warnr<-NA 
   }
-  warn<-c(warnf,warnr)
-  output<-list(xnames,xrnames,value1,effectf,effectr,value2,warn)
+  output<-list(xnames,xrnames,value1,effectf,effectr,value2,warnf,warnr)
   names(output)<-c("All Fixed Effects in the model",
                    "All Random Effects in the model",
                    "Variance partitioning",
                    "Selected Fixed Effects",
                    "Selected Random Effects",
                    "R2 for selected effects",
-                   "Warning for correlated terms")
-  return(output)
+                   "Warning for correlated terms (Fixed)",
+                   "Warning for correlated terms (Random)")
+  print(output)
+  # lme warnings and messages; singular fit check
+  fitissue<-lme_issues(model,print=FALSE)
+  if (length(fitissue))
+    message("lmeWarning: lme() reported the following when fitting this model. Check the model before interpreting the results.\n",
+            paste(fitissue, collapse = "\n"))
+  invisible(output)
 }

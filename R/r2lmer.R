@@ -1,14 +1,45 @@
-## Bates D, Mächler M, Bolker B, Walker S (2015). “Fitting Linear Mixed-Effects Models Using lme4.” Journal of Statistical Software, 67(1), 1–48. doi:10.18637/jss.v067.i01. 
-## The function r2lmer() computes R^2 statistics from the output estimated with the `lmer` function in the 'lme4' package (the function is written for version 1.1-38). 
-## The function requires the 'lme4' package. 
-## The function is written for models with random intercept. The model may or may not have random slopes.  
-## The following arguments must be provided.
-## model: lmer output object. 
-## effectf: selected fixed effect terms for which the R^2 is computed (if no fixed effect is selected, effectf<-NULL).
-## effectr: selected random effect terms for which the R^2 is computed (if no fixed effect is selected, effectr<-NULL; use "(Intercept)" to specify the random intercept).
+## Li, Z., & Ryu, E. (2026). R functions to compute effect size measures in longitudinal growth models. [Manuscript under review]. 
+## The r2lmer() function calculates R^2 statistics from models estimated using 
+## lmer() in the 'lme4' package (tested on version 2.0-6).
+## 
+## Requirements:
+## - Requires the 'lme4' package.
+## - Designed for models with a random intercept (with or without random slopes).
+## 
+## Arguments:
+## - model:   An 'lmer' model object.
+## - effectf: Vector of fixed effect terms for which R^2 is computed. 
+##            Set to NULL (effectf <- NULL) if no fixed effects are selected.
+## - effectr: Vector of random effect terms for which R^2 is computed. 
+##            Set to NULL (effectr <- NULL) if no random effects are selected; 
+##            use "(Intercept)" to specify the random intercept.
 
 
 r2lmer<-function(model,effectf,effectr) {
+  ## check model fitting issue
+  lmer_issues <- function(fit, print = TRUE) {
+    stopifnot(inherits(fit, "merMod"))
+    oi   <- fit@optinfo
+    n    <- length(attr(fit@pp$X, "col.dropped"))
+    code <- oi$conv$opt
+    
+    warningout <- unique(c(
+      if (n) sprintf("fixed-effect model matrix is rank deficient so dropping %d %s",
+                     n, if (n == 1) "column / coefficient" else "columns / coefficients"),
+      tryCatch({ lme4:::checkScaleX(lme4::getME(fit, "X")); NULL },
+               warning = conditionMessage),
+      unlist(oi$warnings),
+      if (!is.null(code) && code != 0)
+        paste0("convergence code ", code, " from ", oi$optimizer,
+               if (length(oi$message) && nzchar(oi$message)) paste0(": ", oi$message)),
+      if (isSingular(fit)) "boundary (singular) fit: see help('isSingular')",
+      unlist(oi$conv$lme4$messages)
+    ))
+    
+    if (print && length(warningout)) message(paste(warningout, collapse = "\n"))
+    invisible(warningout)
+  }
+  ## data
   data<-as.matrix(getME(model,"X"))
   datar<-as.matrix(getME(model,"mmList")[[1]])
   ## fixed effects in the model
@@ -122,12 +153,19 @@ r2lmer<-function(model,effectf,effectr) {
   } else {
     warnr<-NA 
   }
-  warn<-c(warnf,warnr)
-  output<-list(xnames,xrnames,value1,effectf,effectr,value2,warn)
+  output<-list(xnames,xrnames,value1,effectf,effectr,value2,warnf,warnr)
   names(output)<-c("All Fixed Effects in the model","All Random Effects in the model",
                    "Variance partitioning",
                    "Selected Fixed Effects","Selected Random Effects",
                    "R2 for selected effects",
-                   "Warning for correlated terms")
-  return(output)
+                   "Warning for correlated terms (Fixed)",
+                   "Warning for correlated terms (Random)")
+  print(output)
+  # lmer warnings and messages
+  fitissue<-lmer_issues(model,print=FALSE)
+  if (length(fitissue))
+    message("\nlmerWarning: lmer() reported the following when fitting this model. ",
+            "Check the model before interpreting the results.\n",
+            paste(fitissue, collapse = "\n"))
+  invisible(output)
 }
