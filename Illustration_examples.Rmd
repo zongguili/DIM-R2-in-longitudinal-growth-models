@@ -1,0 +1,250 @@
+---
+title: "Illustration of using DIM Functions to Compute Effect Size (R²) in Multilevel Models"
+output:
+  html_document:
+    #toc: true
+    toc_depth: 2
+    number_sections: false
+---
+
+This repository provides illustration examples for applying the DIM R functions developed by Li and Ryu (2026) to compute R² measures for selected fixed and random effects in longitudinal growth and multilevel models. We use a simulated longitudinal dataset for the illustrations. The simulated data are designed to reflect common features of longitudinal studies, including repeated measurements, individual differences in change over time, attrition, and heterogeneous and correlated level-1 residuals. The examples below demonstrate the use of `r2lmer()`, `r2lme()`, and `r2lmeRmat()` with increasingly complex model specifications.
+
+---
+
+## Overview
+
+This example uses a simulated longitudinal dataset from a 12-month blood pressure management program (`bp_example.csv`). The dataset includes 300 adults who are scheduled to be assessed at baseline and at 3, 6, 9, and 12 months.
+
+At each assessment, systolic blood pressure (`sbp`, mmHg) is measured, and participants report the number of days during the previous week on which they were physically active (`active_days`, ranging from 0 to 7). Participants' sex (`sex`) is included as a time-invariant variable. Time is coded from 0 to 4, with a 1 unit increase corresponding to one measurement occasion. 
+
+The simulated data include several features. On average, systolic blood pressure decreases over time, participants reporting more physically active days tend to have lower systolic blood pressure, and males have slightly higher systolic blood pressure on average. Individuals also differ in their initial blood pressure and rates of change over time. Attrition is introduced so that the number of observations decreases across occasions.  
+
+## Variables
+
+| Variable | Description |
+|---|---|
+| `id` | Individual identifier |
+| `time` | Measurement occasion coded 0, 1, 2, 3, and 4 |
+| `visit` | Visit label: Baseline, Month 3, Month 6, Month 9, Month 12 |
+| `active_days` | Number of physically active days during the previous week, ranging from 0 to 7 |
+| `sex` | Time-invariant individual characteristic: 1 = Female and 0 = Male |
+| `sbp` | Systolic blood pressure in mmHg |
+
+## Setup
+```{r setup, message=FALSE}
+# Load functions
+library(lme4)
+library(nlme)
+
+# Load the DIM functions.
+source("r2lmer.R")
+source("r2lme.R")
+source("r2lmeRmat.R")
+
+# Import data
+bp_example<-read.csv("bp_example.csv")
+```
+
+
+Let's take a quick look at the data.
+```{r data}
+head(bp_example)
+```
+
+Number of observations at each time point:
+```{r data1}
+table(bp_example$time)
+```
+
+Number of males and females:
+```{r data3}
+table(bp_example$sex[!duplicated(bp_example$id)])
+```
+
+Summary of `sbp` and `active_days`
+```{r data4, echo=T}
+summary(bp_example$sbp)
+summary(bp_example$active_days)
+```
+
+---
+
+## Overview of the examples
+In the examples, we will fit increasingly complex longitudinal growth models using `lme4::lmer` and `nlme::lme` functions, and then showcase the application of `r2lmer()`, `r2lme()`, and `r2lmeRmat()` to compute R².
+
+- Example 1: `r2lmer()` is illustrated with an `lmer()` model containing a random intercept and random slope of time.
+- Example 2: `r2lme()` is illustrated with an `lme()` random intercept model and multiple fixed effects, including both time-varying and time-invariant predictors.
+- Example 3: `r2lmeRmat()` is illustrated with an `lme()` model that includes random intercept and random slope of time and use AR(1) and ARH(1) level-1 residual covariance structures..
+
+## Example 1: `r2lmer()`
+
+The first model is estimated using `lme4::lmer()`. It includes time as a fixed effect and allows individuals to vary in both their initial systolic blood pressure (random intercept) and their rate of change over time (random slope).
+
+```{r lmer-model}
+model_lmer <- lmer(
+  sbp ~ time + (1 + time | id),
+  data = bp_example
+)
+
+summary(model_lmer)
+```
+
+### Extract target fixed and random effect terms
+In our function, we use `effectf` and `effectr` to select fixed and random effects, respectively.
+
+`effectf`: The selected fixed effect terms for which the R² statistic is computed. Set `effectf <- NULL` if no fixed effect is selected. 
+
+`effectr`: The selected random effect terms for which the R² statistic is computed. Set `effectr <- NULL` if no random effect is selected. Set `effectr <- “(Intercept)”` to select the random intercept. 
+
+### Fixed effect of time
+**Practical question**: What proportion of variance in systolic blood pressure is accounted for by the average linear change over time?
+
+To obtain the R² associated with the *fixed effect of time*:
+
+```{r r2lmer-time}
+r2lmer(
+  model_lmer,
+  effectf = "time",
+  effectr = NULL
+)
+```
+The resulting R² is 0.0478, indicating that approximately 5% of the variance in systolic blood pressure is accounted for by the average linear change over time. 
+
+---
+
+## Example 2: `r2lme()`
+
+The second model is estimated using `nlme::lme()`. It includes time, weekly physical activity, and sex as fixed effects, with a random intercept for individuals. This model does not allow a random slope of time.
+
+```{r lme-model}
+model_lme <- lme(
+  fixed = sbp ~ time + active_days + sex,
+  random = ~ 1 | id,
+  data = bp_example
+)
+
+summary(model_lme)
+```
+
+### Fixed effects of time, physical activity, and sex
+
+**Practical question**: What proportion of variance in systolic blood pressure is jointly accounted for by time, physical activity, and sex?
+
+To obtain the R² associated with the the selected *fixed effects of time*, _physical activity_ and _sex_:
+
+```{r r2lme-fixed}
+r2lme(
+  model_lme,
+  effectf = c("time", "active_days","sex"),
+  effectr = NULL
+)
+```
+
+The resulting R² is 0.0709, indicating that approximately 7% of the variance in systolic blood pressure is jointly accounted for by time, physical activity, and sex. 
+
+### Random intercept
+
+**Practical question**: What proportion of variance in systolic blood pressure is attributable to remaining between-individual differences in baseline blood pressure after accounting for time, physical activity, and sex?
+
+To obtain the R² associated with the *random intercept*:
+
+```{r r2lme-fixed-random}
+r2lme(
+  model_lme,
+  effectf = NULL,
+  effectr = "(Intercept)"
+)
+```
+
+The resulting R² is 0.5085, indicating that approximately 51% of the variance in systolic blood pressure is attributable to remaining between-individual differences in baseline blood pressure after accounting for the fixed effects.
+
+### Fixed effect of sex 
+
+**Practical question**: What proportion of variance in systolic blood pressure is uniquely associated with sex?
+
+To obtain the R² associated with the *fixed effect of sex*:
+
+```{r r2lme-sex}
+r2lme(
+  model_lme,
+  effectf = "sex",
+  effectr = NULL
+)
+```
+
+When the fixed effect of sex was selected, the output shows a warning because the selected fixed sex is correlated with other terms. Therefore, the selected R² is not interpretable.
+
+---
+
+## Example 3: `r2lmeRmat()`
+
+The third example illustrates `r2lmeRmat()` using two level-1 residual covariance structures. Both models include time, physical activity, and sex as fixed effects and include a random intercept and a random slope of time. The first model uses a first-order autoregressive (AR(1)) structure with homogeneous residual variance, and the second uses a heterogeneous first-order autoregressive (ARH(1)) structure that allows residual variances to differ across measurement occasions.
+
+### Model 3a: AR(1) residual covariance structure
+```{r lme-rmat-model1}
+model_lmeRmat_AR1 <- lme(
+  fixed = sbp ~ time+active_days+sex,
+  random = ~ 1 + time | id,
+  correlation = corAR1(
+    form = ~ time | id
+  ),
+  data = bp_example
+)
+
+summary(model_lmeRmat_AR1)
+```
+
+### Random intercept and random slope of time
+
+**Practical question**: What proportion of variance in systolic blood pressure is attributable to remaining individual differences in linear trajectories after accounting for the fixed effects?
+
+To obtain the R² associated with the *random intercept* and *random slope of time*:
+```{r lme-rmat-model_r2}
+r2lmeRmat(
+  model_lmeRmat_AR1,
+  effectf = NULL,
+  effectr = c("(Intercept)", "time")
+)
+```
+
+The resulting R² is 0.4253, indicating that approximately 43% of the variance in systolic blood pressure is attributable to remaining individual differences in linear trajectories after accounting for time, physical activity, and sex.
+
+### Model 3b: ARH(1) residual covariance structure
+```{r lme-rmat-model2,warning=FALSE}
+model_lmeRmat_ARH1 <- lme(
+  fixed = sbp ~ time+active_days+sex,
+  random = ~ 1 + time | id,
+  correlation = corAR1(
+    form = ~ time | id
+  ),
+  weights = varIdent(
+    form = ~ 1 | time),
+    control = lmeControl(
+    opt = "optim"
+  ),
+  data = bp_example
+)
+
+summary(model_lmeRmat_ARH1)
+```
+
+### Random intercept and random slope of time
+
+**Practical question**: What proportion of variance in systolic blood pressure is attributable to remaining individual differences in linear trajectories when residual variances are allowed to differ across measurement occasions?
+
+To obtain the R² associated with the *random intercept* and *random slope of time*:
+
+```{r r2lmeRmat-random}
+r2lmeRmat(
+  model_lmeRmat_ARH1,
+  effectf = NULL,
+  effectr = c("(Intercept)", "time")
+)
+```
+Because the simulated data have both unequal sample sizes across occasions and different residual variability over time. The weighted and unweighted R² calculations are not identical. The unweighted R² is 0.3930, and the weighted R² is 0.4198. These values indicate that approximately 40% of the variance in systolic blood pressure is attributable to remaining individual differences in linear trajectories after accounting for time, physical activity, and sex.
+
+The output also shows a warning message that produced by the `nlme()`function: Non-positive definite approximate variance-covariance. Therefore, the R² should be interpret with caution.
+
+## References
+
+Li, Z., & Ryu, E. (2026). *R functions to compute effect size measures in longitudinal growth models*. [Manuscript under review].
